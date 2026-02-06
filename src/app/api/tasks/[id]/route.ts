@@ -32,7 +32,7 @@ export async function PUT(
       .from('tasks')
       .update(updateData)
       .eq('id', id)
-      .select('*, agent:agents(*)')
+      .select('*, assigned_agent:agents!tasks_assigned_to_fkey(*)')
       .single()
 
     if (error) {

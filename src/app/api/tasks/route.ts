@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get('status')
   const assignedTo = searchParams.get('assigned_to')
 
-  let query = supabase.from('tasks').select('*, agent:agents(*)')
+  let query = supabase.from('tasks').select('*, assigned_agent:agents!tasks_assigned_to_fkey(*), created_agent:agents!tasks_created_by_fkey(*)')
 
   // Filter by status (comma-separated)
   if (status) {
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
         due_date,
         position: maxPosition + 1,
       })
-      .select('*, agent:agents(*)')
+      .select('*, assigned_agent:agents!tasks_assigned_to_fkey(*), created_agent:agents!tasks_created_by_fkey(*)')
       .single()
 
     if (error) {

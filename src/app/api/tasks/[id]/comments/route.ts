@@ -43,7 +43,7 @@ export async function POST(
         agent_id: agent.id,
         content,
       })
-      .select('*, agent:agents(*)')
+      .select('*, comment_agent:agents!task_comments_agent_id_fkey(*)')
       .single()
 
     if (error) {
