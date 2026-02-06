@@ -1,100 +1,41 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Task, Agent } from "@/types"
 import { KanbanBoard } from "@/components/kanban-board"
 import { TaskDialog } from "@/components/task-dialog"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
 
-// Mock data
-const mockAgents: Agent[] = [
-  {
-    id: "1",
-    name: "Lava",
-    role: "Main Agent",
-    description: "Primary AI assistant",
-    avatar_url: "https://api.dicebear.com/7.x/bottts/svg?seed=lava",
-    status: "online",
-    capabilities: ["coding", "research", "automation"],
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "2",
-    name: "Flash",
-    role: "User",
-    description: "Product Manager",
-    avatar_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=flash",
-    status: "online",
-    capabilities: ["product", "design", "strategy"],
-    created_at: new Date().toISOString(),
-  },
-]
-
-const mockTasks: Task[] = [
-  {
-    id: "1",
-    title: "Set up Supabase database schema",
-    description: "Create tables for agents, tasks, and relationships",
-    status: "done",
-    priority: "high",
-    assigned_to: "1",
-    position: 0,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    agent: mockAgents[0],
-  },
-  {
-    id: "2",
-    title: "Build Kanban board UI",
-    description: "Create task cards, columns, and drag-and-drop functionality",
-    status: "in_progress",
-    priority: "urgent",
-    assigned_to: "1",
-    position: 0,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    agent: mockAgents[0],
-  },
-  {
-    id: "3",
-    title: "Design agent roster interface",
-    description: "Create a beautiful interface to showcase all agents",
-    status: "todo",
-    priority: "high",
-    position: 0,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "4",
-    title: "Implement real-time updates",
-    description: "Use Supabase subscriptions for live task updates",
-    status: "todo",
-    priority: "medium",
-    position: 1,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: "5",
-    title: "Add task comments and attachments",
-    description: "Allow rich collaboration on tasks",
-    status: "todo",
-    priority: "low",
-    position: 2,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  },
-]
-
 export default function TasksPage() {
-  const [tasks, setTasks] = useState<Task[]>(mockTasks)
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [agents, setAgents] = useState<Agent[]>([])
+  const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
 
+  useEffect(() => {
+    // Load both tasks and agents
+    Promise.all([
+      fetch("/api/tasks").then(res => res.json()),
+      fetch("/api/agents").then(res => res.json())
+    ])
+      .then(([tasksData, agentsData]) => {
+        setTasks(Array.isArray(tasksData) ? tasksData : [])
+        setAgents(Array.isArray(agentsData) ? agentsData : [])
+        setLoading(false)
+      })
+      .catch(err => {
+        console.error("Error loading data:", err)
+        setTasks([])
+        setAgents([])
+        setLoading(false)
+      })
+  }, [])
+
   const handleTasksChange = (newTasks: Task[]) => {
     setTasks(newTasks)
+    // TODO: Sync with Supabase
   }
 
   const handleTaskClick = (task: Task) => {
@@ -112,7 +53,7 @@ export default function TasksPage() {
                 ...t,
                 ...taskData,
                 agent: taskData.assigned_to
-                  ? mockAgents.find((a) => a.id === taskData.assigned_to)
+                  ? agents.find((a) => a.id === taskData.assigned_to)
                   : undefined,
               }
             : t
@@ -131,17 +72,26 @@ export default function TasksPage() {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         agent: taskData.assigned_to
-          ? mockAgents.find((a) => a.id === taskData.assigned_to)
+          ? agents.find((a) => a.id === taskData.assigned_to)
           : undefined,
       }
       setTasks((prev) => [...prev, newTask])
     }
     setSelectedTask(null)
+    // TODO: Sync with Supabase
   }
 
   const handleCreateTask = () => {
     setSelectedTask(null)
     setDialogOpen(true)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    )
   }
 
   return (
@@ -172,7 +122,7 @@ export default function TasksPage() {
           if (!open) setSelectedTask(null)
         }}
         task={selectedTask}
-        agents={mockAgents}
+        agents={agents}
         onSave={handleSaveTask}
       />
     </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ChatRoom } from "@/components/chat-room"
 import { Agent, ChatMessage } from "@/types"
 import { Card } from "@/components/ui/card"
@@ -9,89 +9,33 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Bot } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-// Mock data
-const mockAgents: Agent[] = [
-  {
-    id: "jarvis",
-    name: "Jarvis",
-    role: "产品经理",
-    status: "online",
-    capabilities: ["产品规划", "用户研究", "数据分析"],
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "shuri",
-    name: "Shuri",
-    role: "SEO 专家",
-    status: "online",
-    capabilities: ["SEO优化", "内容策略", "数据分析"],
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "vision",
-    name: "Vision",
-    role: "全栈工程师",
-    status: "online",
-    capabilities: ["前端开发", "后端开发", "A/B测试"],
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "friday",
-    name: "Friday",
-    role: "UI/UX 设计师",
-    status: "busy",
-    capabilities: ["界面设计", "用户体验", "原型设计"],
-    created_at: new Date().toISOString(),
-  },
-]
-
-const mockMessages: ChatMessage[] = [
-  {
-    id: "1",
-    sender: mockAgents[0], // Jarvis
-    content: "我发现首页的跳出率有点高，需要优化 onboarding 流程",
-    timestamp: new Date(Date.now() - 3600000).toISOString(),
-  },
-  {
-    id: "2",
-    sender: mockAgents[1], // Shuri
-    content: "@Jarvis 我来分析下 SEO 数据，看看用户从哪来的",
-    timestamp: new Date(Date.now() - 3000000).toISOString(),
-    mentions: ["jarvis"],
-  },
-  {
-    id: "3",
-    sender: mockAgents[2], // Vision
-    content: "我可以帮忙做 A/B 测试的技术实现，需要测试哪些方案？",
-    timestamp: new Date(Date.now() - 2400000).toISOString(),
-  },
-  {
-    id: "4",
-    sender: mockAgents[0], // Jarvis
-    content: "@Vision 主要想测试两个版本：\n1. 引导式教程\n2. 交互式演示\n\n@Friday 你能先出个设计稿吗？",
-    timestamp: new Date(Date.now() - 1800000).toISOString(),
-    mentions: ["vision", "friday"],
-  },
-  {
-    id: "5",
-    sender: mockAgents[3], // Friday
-    content: "没问题！我会基于用户画像设计两套方案，预计明天完成",
-    timestamp: new Date(Date.now() - 1200000).toISOString(),
-  },
-  {
-    id: "6",
-    sender: mockAgents[1], // Shuri
-    content: "SEO 数据分析完了：\n- 60% 来自搜索引擎\n- 25% 来自社交媒体\n- 15% 直接访问\n\n搜索用户的跳出率最高，可能是期望不匹配",
-    timestamp: new Date(Date.now() - 600000).toISOString(),
-  },
-]
-
 export default function ChatPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>(mockMessages)
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [agents, setAgents] = useState<Agent[]>([])
+  const [loading, setLoading] = useState(true)
   const currentUserId = "vision" // Simulate current user as Vision
 
-  const handleSendMessage = (content: string, mentions: string[]) => {
-    const currentAgent = mockAgents.find(a => a.id === currentUserId) || mockAgents[0]
+  useEffect(() => {
+    // Load both messages and agents
+    Promise.all([
+      fetch("/api/messages").then(res => res.json()),
+      fetch("/api/agents").then(res => res.json())
+    ])
+      .then(([messagesData, agentsData]) => {
+        setMessages(Array.isArray(messagesData) ? messagesData : [])
+        setAgents(Array.isArray(agentsData) ? agentsData : [])
+        setLoading(false)
+      })
+      .catch(err => {
+        console.error("Error loading data:", err)
+        setMessages([])
+        setAgents([])
+        setLoading(false)
+      })
+  }, [])
+
+  const handleSendMessage = async (content: string, mentions: string[]) => {
+    const currentAgent = agents.find(a => a.id === currentUserId) || agents[0]
     
     const newMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -101,11 +45,35 @@ export default function ChatPage() {
       mentions: mentions.length > 0 ? mentions : undefined,
     }
 
+    // Optimistically add to UI
     setMessages([...messages, newMessage])
+
+    // Send to API
+    try {
+      await fetch("/api/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sender_id: currentAgent.id,
+          content,
+          mentions: mentions.length > 0 ? mentions : undefined,
+        })
+      })
+    } catch (err) {
+      console.error("Error sending message:", err)
+    }
   }
 
-  const onlineAgents = mockAgents.filter(a => a.status === "online")
-  const busyAgents = mockAgents.filter(a => a.status === "busy")
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    )
+  }
+
+  const onlineAgents = agents.filter(a => a.status === "online")
+  const busyAgents = agents.filter(a => a.status === "busy")
 
   return (
     <div className="h-screen flex flex-col">
@@ -131,7 +99,7 @@ export default function ChatPage() {
         <div className="flex-1 flex flex-col">
           <ChatRoom
             messages={messages}
-            agents={mockAgents}
+            agents={agents}
             currentUserId={currentUserId}
             onSendMessage={handleSendMessage}
             typingUsers={[]}

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Agent } from "@/types"
 import { AgentGrid } from "@/components/agent-grid"
@@ -8,53 +8,24 @@ import { AgentDialog } from "@/components/agent-dialog"
 import { Button } from "@/components/ui/button"
 import { UserPlus } from "lucide-react"
 
-// Mock data
-const MOCK_AGENTS: Agent[] = [
-  {
-    id: "1",
-    name: "Jarvis",
-    role: "Squad Lead",
-    description: "主控 AI，负责协调团队和任务分配，确保项目顺利进行",
-    status: "online",
-    capabilities: ["项目管理", "任务分配", "团队协调", "决策制定"],
-    avatar_url: "",
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "2",
-    name: "Vision",
-    role: "Developer",
-    description: "全栈开发专家，擅长 React、Next.js 和现代 Web 技术",
-    status: "busy",
-    capabilities: ["编码", "测试", "部署", "DevOps", "设计"],
-    avatar_url: "",
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "3",
-    name: "Shuri",
-    role: "SEO Specialist",
-    description: "SEO 和内容优化专家，提升网站在搜索引擎中的排名",
-    status: "online",
-    capabilities: ["SEO", "内容创作", "数据分析", "关键词研究"],
-    avatar_url: "",
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: "4",
-    name: "Friday",
-    role: "Content Writer",
-    description: "创意内容创作者，专注于高质量的文案和营销材料",
-    status: "offline",
-    capabilities: ["内容创作", "文案撰写", "社交媒体", "品牌传播"],
-    avatar_url: "",
-    created_at: new Date().toISOString(),
-  },
-]
-
 export default function AgentsPage() {
   const router = useRouter()
-  const [agents] = useState<Agent[]>(MOCK_AGENTS)
+  const [agents, setAgents] = useState<Agent[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch("/api/agents")
+      .then(res => res.json())
+      .then(data => {
+        setAgents(Array.isArray(data) ? data : [])
+        setLoading(false)
+      })
+      .catch(err => {
+        console.error("Error loading agents:", err)
+        setAgents([])
+        setLoading(false)
+      })
+  }, [])
 
   const handleAgentClick = (agent: Agent) => {
     router.push(`/agents/${agent.id}`)
@@ -63,6 +34,14 @@ export default function AgentsPage() {
   const handleCreateAgent = (agentData: Partial<Agent>) => {
     console.log("Creating agent:", agentData)
     // TODO: Integrate with Supabase
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    )
   }
 
   return (
@@ -123,7 +102,14 @@ export default function AgentsPage() {
 
       {/* Content */}
       <div className="flex-1 container py-6 px-6">
-        <AgentGrid agents={agents} onAgentClick={handleAgentClick} />
+        {agents.length > 0 ? (
+          <AgentGrid agents={agents} onAgentClick={handleAgentClick} />
+        ) : (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <p className="text-muted-foreground text-lg">暂无 Agents</p>
+            <p className="text-sm text-muted-foreground mt-2">点击上方按钮创建第一个 Agent</p>
+          </div>
+        )}
       </div>
     </div>
   )
