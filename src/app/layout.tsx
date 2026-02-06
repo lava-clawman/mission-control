@@ -16,7 +16,7 @@ const navItems = [
   { href: "/tasks", icon: CheckSquare, label: "Tasks" },
   { href: "/agents", icon: Users, label: "Agents" },
   { href: "/chat", icon: MessageSquare, label: "Chat" },
-  { href: "/activity", icon: Activity, label: "Activity", disabled: true },
+  { href: "/activity", icon: Activity, label: "Activity" },
 ]
 
 export default function RootLayout({
@@ -43,20 +43,13 @@ export default function RootLayout({
                 <ul className="space-y-1">
                   {navItems.map((item) => (
                     <li key={item.href}>
-                      {item.disabled ? (
-                        <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground opacity-50 cursor-not-allowed">
-                          <item.icon className="h-4 w-4" />
-                          {item.label}
-                        </div>
-                      ) : (
-                        <Link
-                          href={item.href}
-                          className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:bg-accent hover:text-accent-foreground"
-                        >
-                          <item.icon className="h-4 w-4" />
-                          {item.label}
-                        </Link>
-                      )}
+                      <Link
+                        href={item.href}
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:bg-accent hover:text-accent-foreground"
+                      >
+                        <item.icon className="h-4 w-4" />
+                        {item.label}
+                      </Link>
                     </li>
                   ))}
                 </ul>
