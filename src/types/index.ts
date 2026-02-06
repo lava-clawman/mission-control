@@ -23,3 +23,11 @@ export interface Task {
   updated_at: string
   agent?: Agent
 }
+
+export interface ChatMessage {
+  id: string
+  sender: Agent
+  content: string
+  timestamp: string
+  mentions?: string[] // Agent IDs that are mentioned
+}

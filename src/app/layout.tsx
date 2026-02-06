@@ -2,7 +2,7 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import Link from "next/link"
-import { CheckSquare, Users, Activity, LayoutDashboard } from "lucide-react"
+import { CheckSquare, Users, Activity, LayoutDashboard, MessageSquare } from "lucide-react"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -15,6 +15,7 @@ const navItems = [
   { href: "/", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/tasks", icon: CheckSquare, label: "Tasks" },
   { href: "/agents", icon: Users, label: "Agents" },
+  { href: "/chat", icon: MessageSquare, label: "Chat" },
   { href: "/activity", icon: Activity, label: "Activity", disabled: true },
 ]
 
