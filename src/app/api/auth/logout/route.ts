@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/session'
+import { getIronSession } from 'iron-session'
+import { sessionOptions } from '@/lib/auth-config'
+import { cookies } from 'next/headers'
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession()
+    const cookieStore = await cookies()
+    const session = await getIronSession<{ isLoggedIn?: boolean }>(cookieStore, sessionOptions)
     session.destroy()
     
     return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error('Logout error:', error)
-    return NextResponse.json({ error: 'Logout failed' }, { status: 500 })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

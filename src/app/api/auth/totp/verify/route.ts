@@ -1,47 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { authenticator } from 'otplib'
-import { getServiceSupabase } from '@/lib/supabase-service'
+import * as OTPAuth from 'otpauth'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 
 export async function POST(request: NextRequest) {
   try {
-    const { token } = await request.json()
-    
-    if (!token || !/^\d{6}$/.test(token)) {
-      return NextResponse.json({ error: 'Invalid token format' }, { status: 400 })
-    }
-    
-    const supabase = getServiceSupabase()
-    
-    // Get unverified secret
-    const { data: secretData, error } = await supabase
+    const { id, code } = await request.json()
+
+    const { data: totpData } = await supabaseAdmin
       .from('totp_secrets')
       .select('*')
-      .eq('verified', false)
+      .eq('id', id)
       .single()
-    
-    if (error || !secretData) {
-      return NextResponse.json({ error: 'No setup in progress' }, { status: 404 })
+
+    if (!totpData) {
+      return NextResponse.json({ error: 'TOTP not found' }, { status: 404 })
     }
-    
-    // Verify token
-    const isValid = authenticator.verify({
-      token,
-      secret: secretData.secret,
+
+    const totp = new OTPAuth.TOTP({
+      issuer: 'Mission Control',
+      label: 'Flash',
+      secret: OTPAuth.Secret.fromBase32(totpData.secret),
     })
-    
-    if (!isValid) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 400 })
+
+    const delta = totp.validate({ token: code, window: 1 })
+
+    if (delta === null) {
+      return NextResponse.json({ error: 'Invalid code' }, { status: 400 })
     }
-    
-    // Mark as verified
-    await supabase
+
+    await supabaseAdmin
       .from('totp_secrets')
       .update({ verified: true })
-      .eq('id', secretData.id)
-    
-    return NextResponse.json({ verified: true })
-  } catch (error) {
-    console.error('TOTP verify error:', error)
-    return NextResponse.json({ error: 'Verification failed' }, { status: 500 })
+      .eq('id', id)
+
+    return NextResponse.json({ success: true })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

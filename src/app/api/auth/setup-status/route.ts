@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServiceSupabase } from '@/lib/supabase-service'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = getServiceSupabase()
+    const supabase = supabaseAdmin
     
     // Check if any passkey or TOTP is configured
     const [passkeyResult, totpResult] = await Promise.all([

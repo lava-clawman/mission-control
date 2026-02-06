@@ -1,16 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getSession } from '@/lib/session'
+import { NextResponse } from 'next/server'
+import { getIronSession } from 'iron-session'
+import { sessionOptions } from '@/lib/auth-config'
+import { cookies } from 'next/headers'
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const session = await getSession()
+    const cookieStore = await cookies()
+    const session = await getIronSession<{ isLoggedIn?: boolean }>(cookieStore, sessionOptions)
     
     return NextResponse.json({
       isLoggedIn: session.isLoggedIn || false,
-      userId: session.userId,
     })
-  } catch (error) {
-    console.error('Session check error:', error)
-    return NextResponse.json({ isLoggedIn: false }, { status: 500 })
+  } catch (err: any) {
+    return NextResponse.json({ isLoggedIn: false })
   }
 }

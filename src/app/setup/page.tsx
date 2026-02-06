@@ -1,206 +1,183 @@
-'use client'
+"use client"
 
-import { useState, useEffect, Suspense } from 'react'
-import { startRegistration } from '@simplewebauthn/browser'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useEffect, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Smartphone, Loader2, Check } from "lucide-react"
 
 function SetupContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const setupToken = searchParams.get('token')
+  const token = searchParams.get("token")
   
-  const [activeTab, setActiveTab] = useState<'passkey' | 'totp'>('passkey')
-  const [error, setError] = useState('')
+  const [step, setStep] = useState<"loading" | "setup" | "verify" | "done">("loading")
+  const [qrCode, setQrCode] = useState("")
+  const [totpId, setTotpId] = useState("")
+  const [totpSecret, setTotpSecret] = useState("")
+  const [verifyCode, setVerifyCode] = useState("")
   const [loading, setLoading] = useState(false)
-  const [isSetupComplete, setIsSetupComplete] = useState(false)
-  const [checkingStatus, setCheckingStatus] = useState(true)
-  
-  // TOTP setup state
-  const [totpSecret, setTotpSecret] = useState('')
-  const [totpQrCode, setTotpQrCode] = useState('')
-  const [totpVerifyCode, setTotpVerifyCode] = useState('')
-  const [totpSetupComplete, setTotpSetupComplete] = useState(false)
-  
-  // Passkey setup state
-  const [passkeySetupComplete, setPasskeySetupComplete] = useState(false)
-  const [deviceName, setDeviceName] = useState('')
+  const [error, setError] = useState("")
 
   useEffect(() => {
-    checkSetupStatus()
-  }, [])
-
-  const checkSetupStatus = async () => {
-    try {
-      const res = await fetch('/api/auth/setup-status')
-      const data = await res.json()
-      
-      if (data.isSetupComplete) {
-        setIsSetupComplete(true)
-      }
-    } catch (err) {
-      console.error('Failed to check setup status:', err)
-    } finally {
-      setCheckingStatus(false)
-    }
-  }
-
-  const handlePasskeySetup = async () => {
-    if (!setupToken) {
-      setError('Setup token is required')
+    if (!token) {
+      setError("Missing setup token")
       return
     }
-    
-    setLoading(true)
-    setError('')
-    
-    try {
-      // Get registration options
-      const optionsRes = await fetch('/api/auth/passkey/register-options', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ setupToken }),
-      })
-      
-      if (!optionsRes.ok) {
-        const data = await optionsRes.json()
-        throw new Error(data.error || 'Failed to get registration options')
-      }
-      
-      const options = await optionsRes.json()
-      
-      // Start registration
-      const credential = await startRegistration(options)
-      
-      // Complete registration
-      const registerRes = await fetch('/api/auth/passkey/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential, deviceName: deviceName || 'My Device' }),
-      })
-      
-      if (!registerRes.ok) {
-        const data = await registerRes.json()
-        throw new Error(data.error || 'Registration failed')
-      }
-      
-      setPasskeySetupComplete(true)
-    } catch (err: any) {
-      console.error('Passkey setup error:', err)
-      setError(err.message || 'Setup failed')
-    } finally {
-      setLoading(false)
-    }
-  }
+    setupTotp()
+  }, [token])
 
-  const handleTotpSetup = async () => {
-    if (!setupToken) {
-      setError('Setup token is required')
-      return
-    }
-    
+  const setupTotp = async () => {
     setLoading(true)
-    setError('')
-    
+    setError("")
     try {
-      const res = await fetch('/api/auth/totp/setup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ setupToken }),
+      const res = await fetch("/api/auth/totp/setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
       })
-      
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Setup failed')
-      }
-      
       const data = await res.json()
+      
+      if (data.error) {
+        setError(data.error)
+        setStep("loading")
+        return
+      }
+
+      setQrCode(data.qrCode)
+      setTotpId(data.id)
       setTotpSecret(data.secret)
-      setTotpQrCode(data.qrCode)
+      setStep("setup")
     } catch (err: any) {
-      console.error('TOTP setup error:', err)
-      setError(err.message || 'Setup failed')
+      setError(err.message || "Setup error")
     } finally {
       setLoading(false)
     }
   }
 
-  const handleTotpVerify = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const verifyTotp = async () => {
     setLoading(true)
-    setError('')
-    
+    setError("")
     try {
-      const res = await fetch('/api/auth/totp/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: totpVerifyCode }),
+      const res = await fetch("/api/auth/totp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: totpId, code: verifyCode }),
       })
+      const data = await res.json()
       
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Verification failed')
+      if (data.success) {
+        setStep("done")
+      } else {
+        setError(data.error || "Verification failed")
       }
-      
-      setTotpSetupComplete(true)
     } catch (err: any) {
-      console.error('TOTP verify error:', err)
-      setError(err.message || 'Verification failed')
+      setError(err.message || "Verification error")
     } finally {
       setLoading(false)
     }
   }
 
-  const handleComplete = () => {
-    router.push('/login')
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && verifyCode.length === 6) {
+      verifyTotp()
+    }
   }
 
-  if (checkingStatus) {
+  if (!token) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
-        <div className="text-white text-xl">Checking setup status...</div>
+      <div className="min-h-screen flex items-center justify-center bg-zinc-900">
+        <p className="text-red-400">Missing setup token</p>
       </div>
     )
   }
 
-  if (isSetupComplete) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="max-w-md bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl p-8 text-center">
-          <div className="text-6xl mb-4">🔒</div>
-          <h1 className="text-2xl font-bold text-white mb-4">Setup Already Complete</h1>
-          <p className="text-purple-200 mb-6">
-            Authentication has already been configured. Please use the login page.
-          </p>
-          <button
-            onClick={() => router.push('/login')}
-            className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-xl transition-all"
-          >
-            Go to Login
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  if (!setupToken) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-        <div className="max-w-md bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 shadow-2xl p-8 text-center">
-          <div className="text-6xl mb-4">🚫</div>
-          <h1 className="text-2xl font-bold text-white mb-4">Setup Token Required</h1>
-          <p className="text-purple-200">
-            Please provide a valid setup token in the URL.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  // Main setup UI - see below
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
-      {/* The rest of the UI code will go here - shortened for token limits */}
-      <p className="text-white">Setup page content</p>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900 p-4">
+      <Card className="w-full max-w-md bg-zinc-800/50 border-zinc-700">
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl text-zinc-100">🔐 初始设置</CardTitle>
+          <CardDescription className="text-zinc-400">设置 TOTP 验证</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {step === "loading" && !error && (
+            <div className="flex justify-center py-8">
+              <Loader2 className="animate-spin text-zinc-400 h-8 w-8" />
+            </div>
+          )}
+
+          {step === "setup" && (
+            <div className="space-y-4">
+              <p className="text-sm text-zinc-400 text-center">
+                用 Authenticator App 扫描二维码
+              </p>
+              {qrCode && (
+                <div className="flex justify-center">
+                  <img src={qrCode} alt="TOTP QR Code" className="rounded-lg" />
+                </div>
+              )}
+              <p className="text-xs text-zinc-500 text-center break-all">
+                手动输入: {totpSecret}
+              </p>
+              <Button 
+                onClick={() => setStep("verify")}
+                className="w-full bg-orange-600 hover:bg-orange-700"
+              >
+                下一步：验证
+              </Button>
+            </div>
+          )}
+
+          {step === "verify" && (
+            <div className="space-y-4">
+              <p className="text-sm text-zinc-400 text-center">
+                输入 App 中显示的 6 位验证码
+              </p>
+              <Input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                placeholder="000000"
+                value={verifyCode}
+                onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, ""))}
+                onKeyDown={handleKeyDown}
+                className="text-center text-2xl tracking-widest bg-zinc-700 border-zinc-600 text-zinc-100"
+                autoFocus
+              />
+              <Button 
+                onClick={verifyTotp} 
+                disabled={loading || verifyCode.length !== 6}
+                className="w-full bg-orange-600 hover:bg-orange-700"
+              >
+                {loading ? <Loader2 className="animate-spin" /> : "验证并完成"}
+              </Button>
+            </div>
+          )}
+
+          {step === "done" && (
+            <div className="text-center space-y-4">
+              <div className="flex justify-center">
+                <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center">
+                  <Check className="h-8 w-8 text-green-400" />
+                </div>
+              </div>
+              <p className="text-green-400 font-medium">设置完成！</p>
+              <Button 
+                onClick={() => router.push("/login")}
+                className="w-full bg-orange-600 hover:bg-orange-700"
+              >
+                前往登录
+              </Button>
+            </div>
+          )}
+          
+          {error && (
+            <p className="text-red-400 text-sm text-center">{error}</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
@@ -208,8 +185,8 @@ function SetupContent() {
 export default function SetupPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
-        <div className="text-white text-xl">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-zinc-900">
+        <Loader2 className="animate-spin text-zinc-400 h-8 w-8" />
       </div>
     }>
       <SetupContent />

@@ -1,49 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { authenticator } from 'otplib'
-import { getServiceSupabase } from '@/lib/supabase-service'
-import { getSession } from '@/lib/session'
-import { AUTH_CONFIG } from '@/lib/auth-config'
+import * as OTPAuth from 'otpauth'
+import { getIronSession } from 'iron-session'
+import { supabaseAdmin } from '@/lib/supabase-admin'
+import { sessionOptions } from '@/lib/auth-config'
+import { cookies } from 'next/headers'
 
 export async function POST(request: NextRequest) {
   try {
-    const { token } = await request.json()
-    
-    if (!token || !/^\d{6}$/.test(token)) {
-      return NextResponse.json({ error: 'Invalid token format' }, { status: 400 })
-    }
-    
-    const supabase = getServiceSupabase()
-    
-    // Get verified secret
-    const { data: secretData, error } = await supabase
+    const { code } = await request.json()
+
+    const { data: totpData } = await supabaseAdmin
       .from('totp_secrets')
       .select('*')
       .eq('verified', true)
+      .order('created_at', { ascending: false })
+      .limit(1)
       .single()
-    
-    if (error || !secretData) {
-      return NextResponse.json({ error: 'TOTP not configured' }, { status: 404 })
+
+    if (!totpData) {
+      return NextResponse.json({ error: 'TOTP not configured' }, { status: 400 })
     }
-    
-    // Verify token
-    const isValid = authenticator.verify({
-      token,
-      secret: secretData.secret,
+
+    const totp = new OTPAuth.TOTP({
+      issuer: 'Mission Control',
+      label: 'Flash',
+      secret: OTPAuth.Secret.fromBase32(totpData.secret),
     })
-    
-    if (!isValid) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 })
+
+    const delta = totp.validate({ token: code, window: 1 })
+
+    if (delta === null) {
+      return NextResponse.json({ error: 'Invalid code' }, { status: 401 })
     }
-    
-    // Set session
-    const session = await getSession()
+
+    const cookieStore = await cookies()
+    const session = await getIronSession<{ isLoggedIn: boolean }>(cookieStore, sessionOptions)
     session.isLoggedIn = true
-    session.userId = AUTH_CONFIG.adminId
     await session.save()
-    
-    return NextResponse.json({ verified: true })
-  } catch (error) {
-    console.error('TOTP login error:', error)
-    return NextResponse.json({ error: 'Login failed' }, { status: 500 })
+
+    return NextResponse.json({ success: true })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }

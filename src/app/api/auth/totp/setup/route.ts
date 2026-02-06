@@ -1,58 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { authenticator } from 'otplib'
+import * as OTPAuth from 'otpauth'
 import QRCode from 'qrcode'
-import { getServiceSupabase } from '@/lib/supabase-service'
-import { AUTH_CONFIG } from '@/lib/auth-config'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 
 export async function POST(request: NextRequest) {
   try {
-    const { setupToken } = await request.json()
+    const { token } = await request.json()
     
-    // Verify setup token
-    if (setupToken !== process.env.SETUP_TOKEN) {
+    if (token !== process.env.SETUP_TOKEN) {
       return NextResponse.json({ error: 'Invalid setup token' }, { status: 401 })
     }
-    
-    // Generate secret
-    const secret = authenticator.generateSecret()
-    
-    // Create otpauth URL
-    const otpauth = authenticator.keyuri(
-      AUTH_CONFIG.adminId,
-      AUTH_CONFIG.rpName,
-      secret
-    )
-    
-    // Generate QR code
-    const qrCode = await QRCode.toDataURL(otpauth)
-    
-    // Store secret in database (unverified)
-    const supabase = getServiceSupabase()
-    
-    // Delete any existing unverified secrets
-    await supabase
-      .from('totp_secrets')
-      .delete()
-      .eq('verified', false)
-    
-    const { error } = await supabase
-      .from('totp_secrets')
-      .insert({
-        secret,
-        verified: false,
-      })
-    
-    if (error) {
-      console.error('Database error:', error)
-      return NextResponse.json({ error: 'Failed to save secret' }, { status: 500 })
-    }
-    
-    return NextResponse.json({ 
-      secret,
-      qrCode,
+
+    // Generate TOTP
+    const secret = new OTPAuth.Secret()
+    const totp = new OTPAuth.TOTP({
+      issuer: 'Mission Control',
+      label: 'Flash',
+      algorithm: 'SHA1',
+      digits: 6,
+      period: 30,
+      secret: secret,
     })
-  } catch (error) {
-    console.error('TOTP setup error:', error)
-    return NextResponse.json({ error: 'Setup failed' }, { status: 500 })
+
+    const uri = totp.toString()
+    const qrCode = await QRCode.toDataURL(uri)
+
+    // Store secret
+    const { data, error } = await supabaseAdmin
+      .from('totp_secrets')
+      .insert({ secret: secret.base32, verified: false })
+      .select()
+      .single()
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({
+      id: data.id,
+      qrCode,
+      secret: secret.base32,
+    })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
