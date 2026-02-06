@@ -9,8 +9,10 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 // PUT /api/tasks/[id] - Update task
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
+  
   try {
     const agent = await requireAuth(request)
     const body = await request.json()
@@ -29,7 +31,7 @@ export async function PUT(
     const { data, error } = await supabase
       .from('tasks')
       .update(updateData)
-      .eq('id', params.id)
+      .eq('id', id)
       .select('*, agent:agents(*)')
       .single()
 
@@ -43,7 +45,7 @@ export async function PUT(
         agent_id: agent.id,
         action: 'updated_task_status',
         target_type: 'task',
-        target_id: params.id,
+        target_id: id,
         metadata: { status },
       })
     }

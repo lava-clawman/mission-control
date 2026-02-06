@@ -9,12 +9,14 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 // GET /api/agents/[id] - Get single agent
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
+  
   const { data, error } = await supabase
     .from('agents')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (error || !data) {
@@ -27,14 +29,16 @@ export async function GET(
 // PUT /api/agents/[id] - Update agent
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
+  
   try {
     const agent = await requireAuth(request)
     const body = await request.json()
 
     // Agents can only update themselves
-    if (agent.id !== params.id) {
+    if (agent.id !== id) {
       return NextResponse.json(
         { error: 'Forbidden: can only update your own profile' },
         { status: 403 }
@@ -54,7 +58,7 @@ export async function PUT(
     const { data, error } = await supabase
       .from('agents')
       .update(updateData)
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single()
 

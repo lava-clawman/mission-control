@@ -9,8 +9,10 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 // POST /api/tasks/[id]/comments - Add comment to task
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params
+  
   try {
     const agent = await requireAuth(request)
     const body = await request.json()
@@ -27,7 +29,7 @@ export async function POST(
     const { data: task, error: taskError } = await supabase
       .from('tasks')
       .select('id, title')
-      .eq('id', params.id)
+      .eq('id', id)
       .single()
 
     if (taskError || !task) {
@@ -37,7 +39,7 @@ export async function POST(
     const { data, error } = await supabase
       .from('task_comments')
       .insert({
-        task_id: params.id,
+        task_id: id,
         agent_id: agent.id,
         content,
       })
@@ -53,7 +55,7 @@ export async function POST(
       agent_id: agent.id,
       action: 'commented_on_task',
       target_type: 'task',
-      target_id: params.id,
+      target_id: id,
       metadata: { content: content.substring(0, 100) },
     })
 
